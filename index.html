@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VocabMaster - Học Từ Vựng Nghề Nghiệp</title>
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700;900&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+
+        .animate-pop {
+            animation: pop 0.3s ease-out;
+        }
+
+        @keyframes pop {
+            0% {
+                transform: scale(0.95);
+                opacity: 0;
+            }
+
+            100% {
+                transform: scale(1);
+                opacity: 1;
+            }
+        }
+    </style>
+</head>
+
+<body class="bg-slate-50">
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useMemo, useCallback } = React;
+
+        // Sound Synthesis Utility
+        const AudioFX = {
+            ctx: null,
+            init() {
+                if (!this.ctx) this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+            },
+            playSuccess() {
+                this.init();
+                const now = this.ctx.currentTime;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(880, now); // A5
+                osc.frequency.exponentialRampToValueAtTime(1320, now + 0.1); // E6
+
+                gain.gain.setValueAtTime(0.1, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
+
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+
+                osc.start();
+                osc.stop(now + 0.3);
+            },
+            playError() {
+                this.init();
+                const now = this.ctx.currentTime;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(150, now);
+                osc.frequency.linearRampToValueAtTime(100, now + 0.2);
+
+                gain.gain.setValueAtTime(0.1, now);
+                gain.gain.linearRampToValueAtTime(0.01, now + 0.4);
+
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+
+                osc.start();
+                osc.stop(now + 0.4);
+            }
+        };
+
+        // Icons Component
+        const Icon = ({ name, className = "w-6 h-6" }) => {
+            const icons = {
+                BookOpen: <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" /><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" /></svg>,
+                RefreshCcw: <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" /><path d="M3 3v5h5" /><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16" /><path d="M16 16h5v5" /></svg>,
+                ChevronLeft: <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="m15 18-6-6 6-6" /></svg>,
+                Trophy: <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6" /><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18" /><path d="M4 22h16" /><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22" /><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22" /><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z" /></svg>,
+                Type: <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><polyline points="4 7 4 4 20 4 20 7" /><line x1="9" x2="15" y1="20" y2="20" /><line x1="12" x2="12" y1="4" y2="20" /></svg>,
+                MousePointer2: <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="m4 4 7.07 17 2.51-7.39L21 11.07z" /></svg>,
+                LayoutGrid: <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><rect width="7" height="7" x="3" y="3" rx="1" /><rect width="7" height="7" x="14" y="3" rx="1" /><rect width="7" height="7" x="14" y="14" rx="1" /><rect width="7" height="7" x="3" y="14" rx="1" /></svg>,
+                Volume2: <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" /><path d="M15.54 8.46a5 5 0 0 1 0 7.07" /><path d="M19.07 4.93a10 10 0 0 1 0 14.14" /></svg>,
+                Award: <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><circle cx="12" cy="8" r="6" /><path d="M15.477 12.89 17 22l-5-3-5 3 1.523-9.11" /></svg>
+            };
+            return icons[name] || null;
+        };
+
+        // Danh sách từ vựng được chọn lọc (14 từ)
+        const vocabularyData = [
+            { en: "Chef", vi: "Đầu bếp", ipa: "/ʃef/" },
+            { en: "Baker", vi: "Thợ làm bánh", ipa: "/'beɪkər/" },
+            { en: "Bartender", vi: "Người pha chế", ipa: "/'bɑːrtendər/" },
+            { en: "Waiter", vi: "Bồi bàn", ipa: "/'weɪtər/" },
+            { en: "Barber", vi: "Thợ cắt tóc", ipa: "/'bɑːrbər/" },
+            { en: "Porter", vi: "Khuân vác", ipa: "/'pɔːrtər/" },
+            { en: "Policeman", vi: "Cảnh sát", ipa: "/pə'liːsmən/" },
+            { en: "Firefighter", vi: "Lính cứu hỏa", ipa: "/'faɪəfaɪtər/" },
+            { en: "Security guard", vi: "Bảo vệ", ipa: "/sɪ'kjʊərəti ɡɑːrd/" },
+            { en: "Lifeguard", vi: "Cứu hộ", ipa: "/'laɪfɡɑːrd/" },
+            { en: "Bus driver", vi: "Tài xế xe buýt", ipa: "/bʌs 'draɪvər/" },
+            { en: "Mailman", vi: "Người đưa thư", ipa: "/'meɪlmæn/" },
+            { en: "Sailor", vi: "Thủy thủ", ipa: "/'seɪlər/" },
+            { en: "Pilot", vi: "Phi công", ipa: "/'paɪlət/" }
+        ];
+
+        const MODES = { HOME: 'home', QUIZ: 'quiz', INPUT_VI: 'input_vi', INPUT_EN: 'input_en', MATCHING: 'matching' };
+
+        const App = () => {
+            const [mode, setMode] = useState(MODES.HOME);
+            const [currentQuestions, setCurrentQuestions] = useState([]);
+            const [currentIndex, setCurrentIndex] = useState(0);
+            const [score, setScore] = useState(0);
+            const [showResult, setShowResult] = useState(false);
+            const [answerState, setAnswerState] = useState(null);
+            const [inputValue, setInputValue] = useState("");
+            const [matchingItems, setMatchingItems] = useState({ left: [], right: [] });
+            const [selectedMatch, setSelectedMatch] = useState({ left: null, right: null });
+            const [matchedPairs, setMatchedPairs] = useState([]);
+
+            const shuffle = (array) => [...array].sort(() => Math.random() - 0.5);
+
+            const speak = useCallback((text) => {
+                if (!window.speechSynthesis) return;
+                window.speechSynthesis.cancel();
+                const utterance = new SpeechSynthesisUtterance(text);
+                utterance.lang = 'en-US';
+                utterance.rate = 0.9;
+                window.speechSynthesis.speak(utterance);
+            }, []);
+
+            const quizOptions = useMemo(() => {
+                if (mode !== MODES.QUIZ || !currentQuestions[currentIndex]) return [];
+                const current = currentQuestions[currentIndex];
+                const distractors = shuffle(vocabularyData.filter(v => v.vi !== current.vi)).slice(0, 3);
+                return shuffle([...distractors.map(d => d.vi), current.vi]);
+            }, [currentIndex, currentQuestions, mode]);
+
+            useEffect(() => {
+                if ((mode === MODES.QUIZ || mode === MODES.INPUT_VI) && currentQuestions[currentIndex] && !showResult) {
+                    speak(currentQuestions[currentIndex].en);
+                }
+            }, [currentIndex, mode, currentQuestions, showResult, speak]);
+
+            const startMode = (selectedMode) => {
+                setMode(selectedMode);
+                setCurrentIndex(0);
+                setScore(0);
+                setShowResult(false);
+                setAnswerState(null);
+                setInputValue("");
+
+                if (selectedMode === MODES.MATCHING) {
+                    const items = shuffle(vocabularyData).slice(0, 8);
+                    setMatchingItems({
+                        left: shuffle(items.map(item => ({ id: item.en, text: item.en }))),
+                        right: shuffle(items.map(item => ({ id: item.en, text: item.vi })))
+                    });
+                    setMatchedPairs([]);
+                    setSelectedMatch({ left: null, right: null });
+                } else {
+                    setCurrentQuestions(shuffle(vocabularyData));
+                }
+            };
+
+            const handleQuizAnswer = (option) => {
+                if (answerState) return;
+                const correct = option === currentQuestions[currentIndex].vi;
+                setAnswerState(correct ? 'correct' : 'wrong');
+
+                if (correct) {
+                    setScore(s => s + 1);
+                    AudioFX.playSuccess();
+                } else {
+                    AudioFX.playError();
+                }
+
+                setTimeout(() => {
+                    if (currentIndex < currentQuestions.length - 1) {
+                        setCurrentIndex(i => i + 1);
+                        setAnswerState(null);
+                    } else { setShowResult(true); }
+                }, 1000);
+            };
+
+            const handleInputSubmit = (e) => {
+                e.preventDefault();
+                if (answerState) return;
+                const current = currentQuestions[currentIndex];
+                const userVal = inputValue.trim().toLowerCase();
+                const correctVal = mode === MODES.INPUT_VI ? current.vi.toLowerCase() : current.en.toLowerCase();
+                const isCorrect = userVal === correctVal;
+
+                setAnswerState(isCorrect ? 'correct' : 'wrong');
+
+                if (isCorrect) {
+                    setScore(s => s + 1);
+                    AudioFX.playSuccess();
+                } else {
+                    AudioFX.playError();
+                }
+
+                setTimeout(() => {
+                    if (currentIndex < currentQuestions.length - 1) {
+                        setCurrentIndex(i => i + 1);
+                        setAnswerState(null);
+                        setInputValue("");
+                    } else { setShowResult(true); }
+                }, 1500);
+            };
+
+            const handleMatchSelect = (side, id) => {
+                if (matchedPairs.includes(id)) return;
+                if (side === 'left') speak(id);
+                const newSelection = { ...selectedMatch, [side]: id };
+                setSelectedMatch(newSelection);
+                if (newSelection.left && newSelection.right) {
+                    if (newSelection.left === newSelection.right) {
+                        setMatchedPairs([...matchedPairs, newSelection.left]);
+                        setScore(s => s + 1);
+                        AudioFX.playSuccess();
+                    } else {
+                        AudioFX.playError();
+                    }
+                    setTimeout(() => setSelectedMatch({ left: null, right: null }), 300);
+                }
+            };
+
+            useEffect(() => {
+                if (mode === MODES.MATCHING && matchedPairs.length > 0 && matchedPairs.length === matchingItems.left.length) {
+                    setTimeout(() => setShowResult(true), 500);
+                }
+            }, [matchedPairs, mode, matchingItems.left.length]);
+
+            if (mode === MODES.HOME) {
+                return (
+                    <div className="min-h-screen p-6 md:p-12 flex flex-col items-center animate-pop">
+                        <div className="max-w-4xl w-full">
+                            <header className="mb-12 text-center">
+                                <h1 className="text-4xl md:text-5xl font-black text-indigo-600 mb-4 flex items-center justify-center gap-3">
+                                    <Icon name="BookOpen" className="w-10 h-10 md:w-12 md:h-12" /> VocabMaster
+                                </h1>
+                                <p className="text-slate-600 text-lg font-medium">Luyện tập tập trung 14 từ vựng nghề nghiệp</p>
+                            </header>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <MenuButton icon="LayoutGrid" title="Trắc nghiệm" desc="Chọn nghĩa đúng cho danh sách 14 từ." color="blue" onClick={() => startMode(MODES.QUIZ)} />
+                                <MenuButton icon="MousePointer2" title="Nối từ" desc="Nối cặp Anh - Việt ngẫu nhiên." color="pink" onClick={() => startMode(MODES.MATCHING)} />
+                                <MenuButton icon="Type" title="Nhập nghĩa" desc="Dịch sang tiếng Việt cho 14 từ." color="emerald" onClick={() => startMode(MODES.INPUT_VI)} />
+                                <MenuButton icon="Award" title="Nhập từ" desc="Viết từ tiếng Anh cho 14 từ." color="amber" onClick={() => startMode(MODES.INPUT_EN)} />
+                            </div>
+                        </div>
+                    </div>
+                );
+            }
+
+            return (
+                <div className="min-h-screen p-4 md:p-8 flex flex-col items-center">
+                    <div className="max-w-2xl w-full">
+                        {showResult ? (
+                            <div className="bg-white p-8 rounded-3xl shadow-xl text-center border border-slate-100 animate-pop">
+                                <div className="mb-6 flex justify-center"><div className="p-4 bg-yellow-100 rounded-full"><Icon name="Trophy" className="w-12 h-12 text-yellow-500" /></div></div>
+                                <h3 className="text-2xl font-bold text-slate-800 mb-2">Hoàn thành!</h3>
+                                <div className="text-5xl font-black text-indigo-600 mb-8">{score} <span className="text-2xl text-slate-400">/ {mode === MODES.MATCHING ? matchingItems.left.length : currentQuestions.length}</span></div>
+                                <button onClick={() => startMode(mode)} className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-bold hover:bg-indigo-700 transition-all flex items-center justify-center gap-2"><Icon name="RefreshCcw" className="w-5 h-5" /> Thử lại</button>
+                                <button onClick={() => setMode(MODES.HOME)} className="w-full mt-4 py-4 bg-slate-100 text-slate-600 rounded-2xl font-bold hover:bg-slate-200 transition-all">Về trang chủ</button>
+                            </div>
+                        ) : (
+                            <>
+                                <div className="flex items-center justify-between mb-8">
+                                    <button onClick={() => setMode(MODES.HOME)} className="p-2 hover:bg-slate-100 rounded-full transition-colors"><Icon name="ChevronLeft" className="w-6 h-6 text-slate-600" /></button>
+                                    <div className="text-center">
+                                        <h2 className="font-bold text-xl text-slate-800">{mode === MODES.QUIZ ? "Trắc nghiệm" : mode === MODES.MATCHING ? "Nối từ" : mode === MODES.INPUT_VI ? "Dịch sang tiếng Việt" : "Dịch sang tiếng Anh"}</h2>
+                                        {mode !== MODES.MATCHING && <p className="text-sm text-slate-500 font-medium">Câu {currentIndex + 1} / {currentQuestions.length}</p>}
+                                    </div>
+                                    <div className="w-10"></div>
+                                </div>
+                                {mode === MODES.QUIZ && (
+                                    <div className="space-y-6 animate-pop">
+                                        <div className="bg-white p-10 rounded-3xl shadow-sm border border-slate-200 text-center relative">
+                                            <span className="text-slate-400 font-mono mb-2 block">{currentQuestions[currentIndex]?.ipa}</span>
+                                            <div className="flex items-center justify-center gap-4">
+                                                <h3 className="text-4xl font-black text-slate-800">{currentQuestions[currentIndex]?.en}</h3>
+                                                <button onClick={() => speak(currentQuestions[currentIndex]?.en)} className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-full"><Icon name="Volume2" className="w-8 h-8" /></button>
+                                            </div>
+                                        </div>
+                                        <div className="grid grid-cols-1 gap-3">
+                                            {quizOptions.map((option, idx) => (
+                                                <button key={idx} onClick={() => handleQuizAnswer(option)} disabled={!!answerState}
+                                                    className={`p-5 rounded-2xl text-left font-bold text-lg transition-all border-2 ${answerState === 'correct' && option === currentQuestions[currentIndex]?.vi ? 'bg-emerald-50 border-emerald-500 text-emerald-700' :
+                                                        answerState === 'wrong' && option === currentQuestions[currentIndex]?.vi ? 'bg-emerald-50 border-emerald-500 text-emerald-700' :
+                                                            answerState === 'wrong' && option !== currentQuestions[currentIndex]?.vi ? 'bg-red-50 border-red-200 text-slate-400' :
+                                                                'bg-white border-slate-200 hover:border-indigo-400 text-slate-700'
+                                                        }`}>{option}</button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+                                {(mode === MODES.INPUT_VI || mode === MODES.INPUT_EN) && (
+                                    <div className="space-y-6 animate-pop">
+                                        <div className="bg-white p-10 rounded-3xl shadow-sm border border-slate-200 text-center">
+                                            <div className="flex items-center justify-center gap-4">
+                                                <h3 className="text-4xl font-black text-slate-800">{mode === MODES.INPUT_VI ? currentQuestions[currentIndex]?.en : currentQuestions[currentIndex]?.vi}</h3>
+                                                {mode === MODES.INPUT_VI && <button onClick={() => speak(currentQuestions[currentIndex]?.en)} className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-full"><Icon name="Volume2" className="w-8 h-8" /></button>}
+                                            </div>
+                                            {mode === MODES.INPUT_VI && <span className="text-slate-400 font-mono mt-2 block">{currentQuestions[currentIndex]?.ipa}</span>}
+                                        </div>
+                                        <form onSubmit={handleInputSubmit} className="space-y-4">
+                                            <input autoFocus type="text" value={inputValue} onChange={(e) => setInputValue(e.target.value)} disabled={!!answerState}
+                                                placeholder={mode === MODES.INPUT_VI ? "Nhập tiếng Việt..." : "Type English word..."}
+                                                className={`w-full p-6 rounded-2xl border-2 text-xl text-center font-bold focus:outline-none transition-all ${answerState === 'correct' ? 'border-emerald-500 bg-emerald-50 text-emerald-700' : answerState === 'wrong' ? 'border-red-500 bg-red-50 text-red-700' : 'border-slate-200 focus:border-indigo-500 shadow-inner'}`} />
+                                            {answerState === 'wrong' && <div className="text-center text-red-600 font-bold">Sai! Đáp án: {mode === MODES.INPUT_VI ? currentQuestions[currentIndex]?.vi : currentQuestions[currentIndex]?.en}</div>}
+                                            <button type="submit" className="w-full py-4 bg-slate-800 text-white rounded-2xl font-bold hover:bg-slate-900 transition-all">Kiểm tra</button>
+                                        </form>
+                                    </div>
+                                )}
+                                {mode === MODES.MATCHING && (
+                                    <div className="flex gap-4 animate-pop">
+                                        <div className="flex-1 space-y-3">
+                                            {matchingItems.left.map(item => (
+                                                <button key={item.id} onClick={() => handleMatchSelect('left', item.id)}
+                                                    className={`w-full p-4 rounded-xl font-bold transition-all border-2 flex items-center justify-between ${matchedPairs.includes(item.id) ? 'bg-emerald-100 border-emerald-500 text-emerald-700 opacity-50' : selectedMatch.left === item.id ? 'bg-indigo-500 border-indigo-600 text-white shadow-lg' : 'bg-white border-slate-200 text-slate-700'}`}>
+                                                    {item.text} <Icon name="Volume2" className={`w-4 h-4 ${selectedMatch.left === item.id ? 'text-indigo-200' : 'text-slate-300'}`} />
+                                                </button>
+                                            ))}
+                                        </div>
+                                        <div className="flex-1 space-y-3">
+                                            {matchingItems.right.map(item => (
+                                                <button key={item.id} onClick={() => handleMatchSelect('right', item.id)}
+                                                    className={`w-full p-4 rounded-xl font-bold transition-all border-2 ${matchedPairs.includes(item.id) ? 'bg-emerald-100 border-emerald-500 text-emerald-700 opacity-50' : selectedMatch.right === item.id ? 'bg-indigo-500 border-indigo-600 text-white shadow-lg' : 'bg-white border-slate-200 text-slate-700'}`}>{item.text}</button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+                            </>
+                        )}
+                    </div>
+                </div>
+            );
+        };
+
+        const MenuButton = ({ icon, title, desc, color, onClick }) => {
+            const colors = {
+                blue: "bg-blue-100 text-blue-600 border-blue-200 hover:border-blue-400",
+                pink: "bg-pink-100 text-pink-600 border-pink-200 hover:border-pink-400",
+                emerald: "bg-emerald-100 text-emerald-600 border-emerald-200 hover:border-emerald-400",
+                amber: "bg-amber-100 text-amber-600 border-amber-200 hover:border-amber-400"
+            };
+            return (
+                <button onClick={onClick} className="group bg-white p-8 rounded-3xl shadow-sm border border-slate-200 hover:shadow-md transition-all text-left">
+                    <div className={`w-14 h-14 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform ${colors[color]}`}>
+                        <Icon name={icon} className="w-8 h-8" />
+                    </div>
+                    <h3 className="text-xl font-bold text-slate-800 mb-2">{title}</h3>
+                    <p className="text-slate-500 text-sm">{desc}</p>
+                </button>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+
+</html>
